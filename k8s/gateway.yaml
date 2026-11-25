@@ -1,0 +1,52 @@
+# Headless Service: DNS returns one IP per READY llama-worker pod, so the gateway can
+# route to individual pods (a normal Service would hide them behind one random-ish IP).
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-worker-headless
+spec:
+  clusterIP: None
+  selector: { app: llama-worker }
+  ports: [{ name: http, port: 8080, targetPort: 8080 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: gateway }
+  template:
+    metadata:
+      labels: { app: gateway }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: gateway
+          image: llm-gateway:local
+          imagePullPolicy: Never          # use the image built inside Minikube
+          ports: [{ containerPort: 8000 }]
+          env:
+            - { name: BACKEND_DNS, value: "llama-worker-headless" }
+            - { name: BACKEND_PORT, value: "8080" }
+            - { name: ROUTING, value: "smart" }
+            - { name: CACHE_PROMPT, value: "true" }   # "false" for phase2_baseline.json
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 2
+          resources:
+            requests: { cpu: "500m", memory: "256Mi" }
+            limits:   { cpu: "1", memory: "512Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  labels: { app: gateway }
+spec:
+  selector: { app: gateway }
+  ports: [{ name: http, port: 8000, targetPort: 8000 }]
