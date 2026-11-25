@@ -1,10 +1,9 @@
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: llama-worker
 spec:
-  replicas: 1
+  replicas: 2
 
   selector:
     matchLabels:
@@ -29,7 +28,9 @@ spec:
             - "--port"
             - "8080"
             - "--ctx-size"
-            - "4096"
+            - "8192"
+            - "--parallel"
+            - "3"
             - "--threads"
             - "2"
             - "--metrics"
@@ -55,13 +56,12 @@ spec:
             httpGet:
               path: /health
               port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            failureThreshold: 30
+            initialDelaySeconds: 2
+            periodSeconds: 2
+            failureThreshold: 60
 
       volumes:
         - name: model-volume
           hostPath:
             path: /models
             type: Directory
-
